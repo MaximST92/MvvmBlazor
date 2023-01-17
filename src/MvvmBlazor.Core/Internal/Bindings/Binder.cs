@@ -1,10 +1,14 @@
-﻿namespace MvvmBlazor.Internal.Bindings;
+﻿using MvvmBlazor.Internal.Bindings.Converter;
+
+namespace MvvmBlazor.Internal.Bindings;
 
 public interface IBinder
 {
     Action<IBinding, EventArgs>? ValueChangedCallback { get; set; }
 
     TValue Bind<TViewModel, TValue>(TViewModel viewModel, Expression<Func<TViewModel, TValue>> propertyExpression)
+        where TViewModel : ViewModelBase;
+    TValue BindWithConverter<TViewModel, TValue>(TViewModel viewModel, Expression<Func<TViewModel, TValue>> propertyExpression, IBindingConverter converter)
         where TViewModel : ViewModelBase;
 }
 
@@ -37,6 +41,31 @@ internal class Binder : IBinder, IDisposable
         var propertyInfo = ValidateAndResolveBindingContext(viewModel, propertyExpression);
 
         var binding = _bindingFactory.Create(viewModel, propertyInfo, _weakEventManager);
+        if (_bindings.Contains(binding))
+        {
+            return (TValue)binding.GetValue();
+        }
+
+        _weakEventManager.AddWeakEventListener(binding, nameof(Binding.BindingValueChanged), ValueChangedCallback);
+        binding.Initialize();
+
+        _bindings.Add(binding);
+
+        return (TValue)binding.GetValue();
+    }
+
+    public TValue BindWithConverter<TViewModel, TValue>(TViewModel viewModel, Expression<Func<TViewModel, TValue>> propertyExpression, IBindingConverter converter) where TViewModel : ViewModelBase
+    {
+        ThrowIfDisposed();
+
+        if (ValueChangedCallback is null)
+        {
+            throw new BindingException($"{nameof(ValueChangedCallback)} is null");
+        }
+
+        var propertyInfo = ValidateAndResolveBindingContext(viewModel, propertyExpression);
+
+        var binding = _bindingFactory.Create(viewModel, propertyInfo, _weakEventManager, converter);
         if (_bindings.Contains(binding))
         {
             return (TValue)binding.GetValue();

@@ -1,4 +1,6 @@
-﻿namespace MvvmBlazor.Internal.Bindings;
+﻿using MvvmBlazor.Internal.Bindings.Converter;
+
+namespace MvvmBlazor.Internal.Bindings;
 
 public interface IBinding : IDisposable
 {
@@ -13,11 +15,13 @@ internal class Binding : IBinding
 {
     private readonly IWeakEventManager _weakEventManager;
     private INotifyCollectionChanged? _boundCollection;
+    private IBindingConverter? _bindingConverter;
     private bool _isCollection;
 
-    public Binding(INotifyPropertyChanged source, PropertyInfo propertyInfo, IWeakEventManager weakEventManager)
+    public Binding(INotifyPropertyChanged source, PropertyInfo propertyInfo, IWeakEventManager weakEventManager, IBindingConverter? bindingConverter = null)
     {
         _weakEventManager = weakEventManager;
+        _bindingConverter = bindingConverter;
         Source = source;
         PropertyInfo = propertyInfo;
     }
@@ -36,7 +40,13 @@ internal class Binding : IBinding
 
     public object GetValue()
     {
-        return PropertyInfo.GetValue(Source, null)!;
+        var value = PropertyInfo.GetValue(Source, null)!;
+        if (_bindingConverter != null)
+        {
+            value = _bindingConverter.Convert(value);
+        }
+
+        return value;
     }
 
     private void AddCollectionBindings()
